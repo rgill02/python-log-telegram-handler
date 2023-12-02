@@ -26,7 +26,7 @@ class Telegram_Handler(logging.Handler):
 	"""
 	############################################################################
 	def __init__(self, channel_id=None, api_key=None, config_fname=None, 
-				 error_cb=None):
+				 error_cb=None, app_name=""):
 		"""
 		Creates a new Telegram_Handler and starts its logging thread as a 
 		daemon thread. Can input credentials in 2 different ways: directly 
@@ -59,6 +59,9 @@ class Telegram_Handler(logging.Handler):
 			unexpected error while sending the logs to telegram. Takes log 
 			message (str), response status code (int), and response text (str)
 		:type erro_cb: function
+		:param app_name: name of application (useful for having multiple 
+			application log to same telegram channel)
+		:type app_name: str
 		:return: new instance of a Telegram_Handler with its logging thread 
 			running as a daemon
 		:rtype: Telegram_Handler
@@ -71,6 +74,9 @@ class Telegram_Handler(logging.Handler):
 			self.error_cb = self._error_cb_stub
 		else:
 			self.error_cb = error_cb
+
+		#Save app name
+		self.app_name = str(app_name)
 
 		#Load credentials from config file if using that method
 		if config_fname is not None:
@@ -104,7 +110,10 @@ class Telegram_Handler(logging.Handler):
 	############################################################################
 	def emit(self, record):
 		log_entry = self.format(record)
-		self.log_q.put(log_entry)
+		if self.app_name:
+			self.log_q.put(self.app_name + "\n" + log_entry)
+		else:
+			self.log_q.put(log_entry)
 
 	############################################################################
 	def _log_to_telegram_loop(self):
@@ -168,6 +177,8 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(desc)
 	help_str = "Path to config file containing telegram credentials"
 	parser.add_argument("config_fname", help=help_str)
+	help_str = "Name of application thats logging to telegram"
+	parser.add_argument("-a", "--app_name", help=help_str, default="")
 	args = parser.parse_args()
 
 	#Get logger
@@ -185,7 +196,8 @@ if __name__ == "__main__":
 														  status_code))
 		print(resp_text)
 	telegram_handler = Telegram_Handler(config_fname=args.config_fname, 
-										error_cb=error_cb)
+										error_cb=error_cb, 
+										app_name=args.app_name)
 	telegram_handler.setLevel(logging.INFO)
 
 	#Create formatter and add to handlers
@@ -203,6 +215,7 @@ if __name__ == "__main__":
 	time.sleep(1)
 	for ii in range(30):
 		logger.info(ii)
+		break
 	try:
 		time.sleep(120)
 	except KeyboardInterrupt as e:
